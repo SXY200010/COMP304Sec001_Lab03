@@ -32,7 +32,7 @@ data class MovieFormState(
 )
 
 class MovieViewModel(application: Application) : AndroidViewModel(application) {
-    private val repo = MovieRepository(MovieDatabase.getDatabase(application).movieDao())
+    internal val repo = MovieRepository(MovieDatabase.getDatabase(application).movieDao())
 
     private val _movies = MutableStateFlow<List<Movie>>(emptyList())
     val movies: StateFlow<List<Movie>> = _movies
@@ -60,9 +60,9 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun seedInitialMovies() {
         val seed = listOf(
-            Movie(11, "Inception", "Christopher Nolan", 19.99, "2010-07-16", 148, "Thriller", false),
-            Movie(22, "Spirited Away", "Hayao Miyazaki", 14.99, "2001-07-20", 125, "Family", true),
-            Movie(33, "Mad Max: Fury Road", "George Miller", 17.49, "2015-05-15", 120, "Action", false)
+            Movie(101, "Inception", "Christopher Nolan", 19.99, "2010-07-16", 148, "Thriller", false),
+            Movie(202, "Spirited Away", "Hayao Miyazaki", 14.99, "2001-07-20", 125, "Family", true),
+            Movie(303, "Mad Max: Fury Road", "George Miller", 17.49, "2015-05-15", 120, "Action", false)
         )
         seed.forEach {
             if (!repo.exists(it.id)) repo.add(it)
@@ -80,7 +80,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         val duration = f.durationMinutes.toIntOrNull()
 
         val error = when {
-            id == null || id !in 11..99 -> "ID must be two digits between 11 and 99."
+            id == null || id !in 100..999 -> "ID must be two digits between 11 and 99."
             f.title.isBlank() -> "Title is required."
             f.director.isBlank() -> "Director is required."
             price == null || price <= 0.0 -> "Price must be a positive number."
@@ -115,6 +115,43 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateMovie(movie: Movie) = viewModelScope.launch { repo.update(movie) }
+    fun updateMovie(movie: Movie) {
+        val f = _form.value
+        val id = f.id.toIntOrNull()
+        val price = f.price.toDoubleOrNull()
+        val duration = f.durationMinutes.toIntOrNull()
+
+        val error = when {
+            id == null || id !in 100..999 -> "ID must be between 100 and 999."
+            f.title.isBlank() -> "Title is required."
+            f.director.isBlank() -> "Director is required."
+            price == null || price <= 0.0 -> "Price must be a positive number."
+            f.releaseDateIso.isBlank() -> "Release date is required (YYYY-MM-DD)."
+            duration == null || duration <= 0 -> "Duration must be a positive integer."
+            f.genre.isBlank() -> "Genre is required."
+            else -> null
+        }
+
+        if (error != null) {
+            _form.value = f.copy(error = error, successMessage = null)
+            return
+        }
+
+        viewModelScope.launch {
+            val updated = Movie(
+                id = id!!,
+                title = f.title.trim(),
+                director = f.director.trim(),
+                price = price!!,
+                releaseDateIso = f.releaseDateIso.trim(),
+                durationMinutes = duration!!,
+                genre = f.genre.trim(),
+                favorite = f.favorite
+            )
+            repo.update(updated)
+            _form.value = f.copy(successMessage = "Movie updated successfully!", error = null)
+        }
+    }
+
     fun deleteMovie(movie: Movie) = viewModelScope.launch { repo.delete(movie) }
 }
